@@ -361,6 +361,49 @@ describe("provider API", () => {
     }
   });
 
+  test("reveals API keys only through the explicit endpoint", async () => {
+    const processVariable = "OMP_MODELS_WEBUI_TEST_PROCESS_KEY";
+    const processSecret = "process-environment-secret";
+    const fileSecret = "adjacent-env-file-secret";
+    const { directory, path } = await setup(`providers:
+  process-key:
+    baseUrl: https://models.example/v1
+    apiKey: ${processVariable}
+  file-key:
+    baseUrl: https://models.example/v1
+    apiKey: OMP_MODELS_WEBUI_TEST_FILE_KEY
+`);
+    await Bun.write(
+      join(directory, ".env"),
+      `OMP_MODELS_WEBUI_TEST_FILE_KEY=${fileSecret}\n`,
+    );
+    process.env[processVariable] = processSecret;
+    const handler = createRequestHandler({ store: new ConfigStore(path) });
+
+    try {
+      const processResponse = await handler(
+        request("/api/providers/process-key/api-key", "POST"),
+      );
+      const fileResponse = await handler(
+        request("/api/providers/file-key/api-key", "POST"),
+      );
+      expect(processResponse.status).toBe(200);
+      expect(fileResponse.status).toBe(200);
+      expect(await body(processResponse)).toEqual({ apiKey: processSecret });
+      expect(await body(fileResponse)).toEqual({ apiKey: fileSecret });
+      expect(processResponse.headers.get("cache-control")).toBe("no-store");
+
+      const listed = await body(await handler(request("/api/providers")));
+      expect(JSON.stringify(listed)).not.toContain(processSecret);
+      expect(JSON.stringify(listed)).not.toContain(fileSecret);
+
+      const wrongMethod = await handler(request("/api/providers/file-key/api-key"));
+      expect(wrongMethod.status).toBe(405);
+    } finally {
+      delete process.env[processVariable];
+    }
+  });
+
   test("marks quoted command api keys unavailable without executing them", async () => {
     const { directory, path } = await setup();
     const marker = join(directory, "api-key-command-must-not-run");
@@ -388,6 +431,12 @@ describe("provider API", () => {
     expect(response.status).toBe(200);
     expect(received?.apiKey).toBeUndefined();
     expect(received?.credentialsUnavailable).toBe(true);
+    expect(await Bun.file(marker).exists()).toBe(false);
+
+    const revealResponse = await handler(
+      request("/api/providers/command-key/api-key", "POST"),
+    );
+    expect(revealResponse.status).toBe(422);
     expect(await Bun.file(marker).exists()).toBe(false);
   });
 

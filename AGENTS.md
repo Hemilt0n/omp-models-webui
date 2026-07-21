@@ -37,11 +37,11 @@
 ## 不可破坏的安全约束
 
 - 服务必须只绑定 `127.0.0.1`。
-- 已保存 API Key 不得返回浏览器、写入日志或测试快照。
+- 普通 API、日志和测试快照不得包含已保存 API Key；仅允许用户主动操作触发的 `POST /api/providers/:id/api-key` 返回可解析值，且响应必须 `no-store`。
 - 已保存 Provider/模型 Header 必须以 `__OMP_MODELS_WEBUI_SECRET__` 返回。
 - 浏览器提交哨兵值时必须恢复磁盘原值，不能把哨兵写入最终配置。
 - 新 API Key 必须写入相邻 `.env`，文件模式为 `0600`；YAML 只保存环境变量引用。
-- 不得执行 `!command` API Key 或 Header resolver。
+- 不得执行 `!command` API Key 或 Header resolver；显式读取端点必须拒绝不可解析的命令凭证。
 - 发现候选必须保持与用户 Base URL 同 Origin。
 - 网络请求必须保持超时和响应大小限制。
 - `/api/discover` 与 `/api/probe` 必须保持独立。
@@ -99,8 +99,8 @@ bunx tsc --noEmit
 
 - 修订冲突和原子写入；
 - YAML 注释/未知字段保留；
-- API Key 与 Header 不泄露；
-- `!command` 不执行；
+- 普通 API 不泄露 API Key，Header 始终脱敏；
+- 显式 API Key 读取仅支持环境变量和相邻 `.env`，且不执行 `!command`；
 - 发现路径、认证回退和 Registry 元数据投影；
 - 模型级 API、Thinking、Compat 等高级字段持久化；
 - `/api/discover` 与 `/api/probe` 的独立行为。

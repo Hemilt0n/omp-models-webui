@@ -18,6 +18,9 @@
     providerId: $("provider-id"),
     baseUrl: $("base-url"),
     apiKey: $("api-key"),
+    toggleApiKey: $("toggle-api-key"),
+    apiKeyEyeShow: document.querySelector(".api-key-eye-show"),
+    apiKeyEyeHide: document.querySelector(".api-key-eye-hide"),
     apiType: $("api-type"),
     discoveryType: $("discovery-type"),
     authHeader: $("auth-header"),
@@ -81,6 +84,7 @@
     probeBusy: false,
     modelEntries: [],
     editingModelId: null,
+    apiKeyEdited: false,
   };
 
   const checkMetadata = [
@@ -103,6 +107,42 @@
   function errorMessage(error, fallback) {
     if (error instanceof Error && error.message) return error.message;
     return fallback;
+  }
+
+  function setApiKeyVisibility(visible) {
+    elements.apiKey.type = visible ? "text" : "password";
+    elements.toggleApiKey.setAttribute("aria-pressed", String(visible));
+    const label = visible ? "隐藏 API Key" : "显示 API Key";
+    elements.toggleApiKey.setAttribute("aria-label", label);
+    elements.toggleApiKey.title = label;
+    elements.apiKeyEyeShow.hidden = visible;
+    elements.apiKeyEyeHide.hidden = !visible;
+  }
+
+  async function toggleApiKeyVisibility() {
+    if (elements.apiKey.type === "text") {
+      setApiKeyVisibility(false);
+      return;
+    }
+
+    const provider = state.selectedId ? providerById(state.selectedId) : null;
+    if (!elements.apiKey.value && provider && hasCredential(provider.credential)) {
+      clearPageMessages();
+      elements.toggleApiKey.disabled = true;
+      try {
+        const result = await request(`/api/providers/${encodeURIComponent(provider.id)}/api-key`, {
+          method: "POST",
+        });
+        elements.apiKey.value = result.apiKey;
+      } catch (error) {
+        setAlert(elements.pageError, errorMessage(error, "无法显示 API Key。"));
+        return;
+      } finally {
+        elements.toggleApiKey.disabled = false;
+      }
+    }
+
+    setApiKeyVisibility(true);
   }
 
   async function request(url, options = {}) {
@@ -234,6 +274,8 @@
     elements.providerId.readOnly = editing;
     elements.baseUrl.value = typeof definition.baseUrl === "string" ? definition.baseUrl : "";
     elements.apiKey.value = "";
+    state.apiKeyEdited = false;
+    setApiKeyVisibility(false);
     elements.apiKey.placeholder = editing ? "留空则保留当前密钥" : "输入 API Key（如服务需要）";
     setApiValue(definition.api);
     elements.discoveryType.value = definition.discovery && typeof definition.discovery.type === "string" ? definition.discovery.type : editing ? "" : "openai-models-list";
@@ -444,7 +486,7 @@
 
     const body = { revision: state.revision, definition };
     const apiKey = elements.apiKey.value;
-    if (apiKey) body.apiKey = apiKey;
+    if (apiKey && state.apiKeyEdited) body.apiKey = apiKey;
 
     setFormBusy(true);
     elements.saveButton.textContent = "正在保存…";
@@ -992,7 +1034,7 @@
       headers: headers.value,
     };
     if (state.selectedId) body.providerId = state.selectedId;
-    if (elements.apiKey.value) body.apiKey = elements.apiKey.value;
+    if (elements.apiKey.value && state.apiKeyEdited) body.apiKey = elements.apiKey.value;
     if (elements.authHeader.checked) body.authHeader = true;
     if (elements.discoveryType.value.trim()) body.discoveryType = elements.discoveryType.value.trim();
 
@@ -1033,7 +1075,7 @@
 
     const body = { revision: state.revision, definition };
     const apiKey = elements.apiKey.value;
-    if (apiKey) body.apiKey = apiKey;
+    if (apiKey && state.apiKeyEdited) body.apiKey = apiKey;
 
     setFormBusy(true);
     elements.syncModelsButton.textContent = "正在更新…";
@@ -1054,6 +1096,8 @@
       elements.deleteButton.hidden = false;
       elements.credentialBadge.hidden = !hasCredential(result.provider.credential);
       elements.apiKey.value = "";
+      state.apiKeyEdited = false;
+      setApiKeyVisibility(false);
       elements.discoveryType.value = "";
       elements.modelsJson.value = formatJson(selectedModels, []);
       renderProviderList();
@@ -1103,7 +1147,7 @@
       runInference: includeInference,
     };
     if (state.selectedId) body.providerId = state.selectedId;
-    if (elements.apiKey.value) body.apiKey = elements.apiKey.value;
+    if (elements.apiKey.value && state.apiKeyEdited) body.apiKey = elements.apiKey.value;
     if (elements.authHeader.checked) body.authHeader = true;
     if (elements.discoveryType.value.trim()) body.discoveryType = elements.discoveryType.value.trim();
     if (includeInference) body.model = model;
@@ -1132,6 +1176,10 @@
     state.dirty = true;
     clearPageMessages();
   });
+  elements.apiKey.addEventListener("input", () => {
+    state.apiKeyEdited = true;
+  });
+  elements.toggleApiKey.addEventListener("click", toggleApiKeyVisibility);
   elements.providerId.addEventListener("input", () => elements.providerId.setCustomValidity(""));
   elements.runInference.addEventListener("change", () => {
     elements.inferenceModel.disabled = state.formBusy || !elements.runInference.checked;

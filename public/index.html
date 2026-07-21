@@ -63,8 +63,20 @@
             </div>
             <div class="field wide">
               <label for="api-key">API Key</label>
-              <input id="api-key" name="apiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="留空则保留当前密钥" aria-describedby="api-key-help" />
-              <small id="api-key-help"><strong>密钥不会回显。</strong>编辑时留空会保留当前密钥；新建时可按服务要求填写。</small>
+              <div class="api-key-control">
+                <input id="api-key" name="apiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="留空则保留当前密钥" aria-describedby="api-key-help" />
+                <button id="toggle-api-key" class="api-key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false" title="显示 API Key">
+                  <svg class="api-key-eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                    <circle cx="12" cy="12" r="2.5"></circle>
+                  </svg>
+                  <svg class="api-key-eye-hide" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                    <path d="M3 3l18 18"></path>
+                    <path d="M2 12s3.5-6 10-6c2.2 0 4.1.7 5.6 1.7M22 12s-3.5 6-10 6c-2.2 0-4.1-.7-5.6-1.7"></path>
+                  </svg>
+                </button>
+              </div>
+              <small id="api-key-help">默认隐藏；点击眼睛可读取并显示本地已配置值。用户输入的新 Key 会写入相邻 <code>.env</code>，YAML 只保存环境变量引用。</small>
             </div>
           </div>
 

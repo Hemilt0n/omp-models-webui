@@ -250,6 +250,20 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
   return value;
 }
 
+function parseProviderApiKeyId(pathname: string): string | undefined {
+  const prefix = "/api/providers/";
+  const suffix = "/api-key";
+  if (!pathname.startsWith(prefix) || !pathname.endsWith(suffix)) return undefined;
+  let id: string;
+  try {
+    id = decodeURIComponent(pathname.slice(prefix.length, -suffix.length));
+  } catch {
+    throw new HttpError(400, "Invalid provider ID encoding");
+  }
+  if (!isValidProviderId(id)) throw new HttpError(400, "Invalid provider ID");
+  return id;
+}
+
 function parseProviderId(pathname: string): string | undefined {
   const prefix = "/api/providers/";
   if (!pathname.startsWith(prefix)) return undefined;
@@ -438,6 +452,16 @@ export function createRequestHandler(options: RequestHandlerOptions = {}): (requ
       if (url.pathname === "/api/providers") {
         if (request.method !== "GET") throw new HttpError(405, "Method not allowed");
         return json(await store.list());
+      }
+
+      const apiKeyProviderId = parseProviderApiKeyId(url.pathname);
+      if (apiKeyProviderId !== undefined) {
+        if (request.method !== "POST") throw new HttpError(405, "Method not allowed");
+        const apiKey = await store.resolveApiKey(apiKeyProviderId);
+        if (apiKey === undefined) {
+          throw new HttpError(422, "API Key cannot be revealed because its value is unavailable");
+        }
+        return json({ apiKey });
       }
 
       const providerId = parseProviderId(url.pathname);
