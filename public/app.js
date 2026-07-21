@@ -193,11 +193,14 @@
   }
 
   function apiKeyEnvironmentName(id) {
-    let hex = "";
-    for (const byte of new TextEncoder().encode(id)) {
-      hex += byte.toString(16).padStart(2, "0").toUpperCase();
+    let readableId = "";
+    for (const character of id) {
+      if (character === ".") readableId += "_DOT_";
+      else if (character === "-") readableId += "_DASH_";
+      else if (character === "_") readableId += "_UNDERSCORE_";
+      else readableId += character.toUpperCase();
     }
-    return `OMP_CUSTOM_${hex}_API_KEY`;
+    return `OMP_CUSTOM_${readableId}_API_KEY`;
   }
 
   function renderApiKeyHelp(provider) {

@@ -77,7 +77,14 @@ export function isValidProviderId(id: string): boolean {
 export const SECRET_SENTINEL = "__OMP_MODELS_WEBUI_SECRET__";
 
 export function apiKeyEnvironmentName(id: string): string {
-  return `OMP_CUSTOM_${Buffer.from(id, "utf8").toString("hex").toUpperCase()}_API_KEY`;
+  let readableId = "";
+  for (const character of id) {
+    if (character === ".") readableId += "_DOT_";
+    else if (character === "-") readableId += "_DASH_";
+    else if (character === "_") readableId += "_UNDERSCORE_";
+    else readableId += character.toUpperCase();
+  }
+  return `OMP_CUSTOM_${readableId}_API_KEY`;
 }
 
 function revisionOf(modelsSource: string, envSource: string): string {

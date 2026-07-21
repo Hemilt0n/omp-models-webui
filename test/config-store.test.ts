@@ -261,10 +261,14 @@ describe("ConfigStore", () => {
     });
   });
 
-  test("uses collision-free UTF-8 provider environment names", () => {
+  test("uses human-readable collision-free provider environment names", () => {
     const names = ["foo-bar", "foo_bar", "foo.bar"].map(apiKeyEnvironmentName);
+    expect(names).toEqual([
+      "OMP_CUSTOM_FOO_DASH_BAR_API_KEY",
+      "OMP_CUSTOM_FOO_UNDERSCORE_BAR_API_KEY",
+      "OMP_CUSTOM_FOO_DOT_BAR_API_KEY",
+    ]);
     expect(new Set(names).size).toBe(3);
-    expect(names.every((name) => /^OMP_CUSTOM_[0-9A-F]+_API_KEY$/.test(name))).toBe(true);
   });
 
   test("includes .env in revisions and rejects stale writes after an env-only change", async () => {
