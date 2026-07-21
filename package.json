@@ -1,0 +1,32 @@
+{
+  "name": "omp-models-webui",
+  "version": "0.1.0",
+  "description": "Local, security-conscious Web UI for managing OMP models.yml providers and models.",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hemilt0n/omp-models-webui.git"
+  },
+  "homepage": "https://github.com/Hemilt0n/omp-models-webui#readme",
+  "keywords": [
+    "omp",
+    "oh-my-pi",
+    "models",
+    "provider",
+    "web-ui"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "check": "bun test && bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^5.9.3"
+  }
+}
