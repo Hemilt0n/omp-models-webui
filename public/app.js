@@ -18,6 +18,7 @@
     providerId: $("provider-id"),
     baseUrl: $("base-url"),
     apiKey: $("api-key"),
+    apiKeyHelp: $("api-key-help"),
     toggleApiKey: $("toggle-api-key"),
     apiKeyEyeShow: document.querySelector(".api-key-eye-show"),
     apiKeyEyeHide: document.querySelector(".api-key-eye-hide"),
@@ -191,6 +192,55 @@
     return false;
   }
 
+  function apiKeyEnvironmentName(id) {
+    let hex = "";
+    for (const byte of new TextEncoder().encode(id)) {
+      hex += byte.toString(16).padStart(2, "0").toUpperCase();
+    }
+    return `OMP_CUSTOM_${hex}_API_KEY`;
+  }
+
+  function renderApiKeyHelp(provider) {
+    const appendText = (text) => elements.apiKeyHelp.append(document.createTextNode(text));
+    const appendCode = (text) => {
+      const code = document.createElement("code");
+      code.textContent = text;
+      elements.apiKeyHelp.append(code);
+    };
+
+    elements.apiKeyHelp.replaceChildren();
+    const credential = provider && provider.credential;
+    if (hasCredential(credential)) {
+      if (credential && typeof credential === "object" && credential.source === "env" && typeof credential.ref === "string" && credential.ref) {
+        appendText("当前读取环境变量 ");
+        appendCode(credential.ref);
+        appendText("（优先读取服务进程环境，其次读取 models.yml 相邻 ");
+        appendCode(".env");
+        appendText("）。");
+      } else if (credential && typeof credential === "object" && credential.source === "command") {
+        appendText("当前凭证由命令提供，无法在页面显示。");
+      } else {
+        appendText("当前已配置凭证。");
+      }
+    } else {
+      appendText("当前未配置 API Key。");
+    }
+
+    const providerId = provider ? provider.id : elements.providerId.value;
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(providerId)) {
+      appendText(" 输入合法 Provider ID 后显示新 Key 的目标环境变量；实际值将写入 models.yml 相邻的 ");
+      appendCode(".env");
+      appendText("，YAML 引用该变量。");
+      return;
+    }
+
+    appendText(" 用户输入的新 Key 将保存到 models.yml 相邻 ");
+    appendCode(".env");
+    appendText(" 中的环境变量 ");
+    appendCode(apiKeyEnvironmentName(providerId));
+    appendText("，YAML 只引用该变量。");
+  }
+
   function providerById(id) {
     return state.providers.find((provider) => provider.id === id) || null;
   }
@@ -276,7 +326,8 @@
     elements.apiKey.value = "";
     state.apiKeyEdited = false;
     setApiKeyVisibility(false);
-    elements.apiKey.placeholder = editing ? "留空则保留当前密钥" : "输入 API Key（如服务需要）";
+    elements.apiKey.placeholder = editing && hasCredential(provider.credential) ? "••••••••••••••••" : "输入 API Key（如服务需要）";
+    renderApiKeyHelp(provider);
     setApiValue(definition.api);
     elements.discoveryType.value = definition.discovery && typeof definition.discovery.type === "string" ? definition.discovery.type : editing ? "" : "openai-models-list";
     elements.authHeader.checked = definition.authHeader === true;
@@ -498,7 +549,7 @@
       });
       state.dirty = false;
       await loadProviders(id);
-      setAlert(elements.pageStatus, "配置已保存。API Key 不会在页面中回显。");
+      setAlert(elements.pageStatus, "配置已保存；API Key 默认隐藏。");
     } catch (error) {
       setAlert(elements.pageError, errorMessage(error, "保存失败。"));
     } finally {
@@ -1098,6 +1149,8 @@
       elements.apiKey.value = "";
       state.apiKeyEdited = false;
       setApiKeyVisibility(false);
+      elements.apiKey.placeholder = hasCredential(result.provider.credential) ? "••••••••••••••••" : "输入 API Key（如服务需要）";
+      renderApiKeyHelp(result.provider);
       elements.discoveryType.value = "";
       elements.modelsJson.value = formatJson(selectedModels, []);
       renderProviderList();
@@ -1180,7 +1233,10 @@
     state.apiKeyEdited = true;
   });
   elements.toggleApiKey.addEventListener("click", toggleApiKeyVisibility);
-  elements.providerId.addEventListener("input", () => elements.providerId.setCustomValidity(""));
+  elements.providerId.addEventListener("input", () => {
+    elements.providerId.setCustomValidity("");
+    if (!state.selectedId) renderApiKeyHelp(null);
+  });
   elements.runInference.addEventListener("change", () => {
     elements.inferenceModel.disabled = state.formBusy || !elements.runInference.checked;
     if (elements.runInference.checked) elements.inferenceModel.focus();
