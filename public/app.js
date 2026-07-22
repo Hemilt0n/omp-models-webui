@@ -50,11 +50,15 @@
     selectNoModels: $("select-no-models"),
     syncModelsButton: $("sync-models-button"),
     addModelButton: $("add-model-button"),
-    modelEditorDialog: $("model-editor-dialog"),
+    themeToggle: $("theme-toggle"),
+    modelConfig: $("model-config"),
+    configEmpty: $("config-empty"),
     modelEditorForm: $("model-editor-form"),
     modelEditorTitle: $("model-editor-title"),
-    modelEditorClose: $("model-editor-close"),
-    modelEditorCancel: $("model-editor-cancel"),
+    modelApiBadgeTitle: $("model-api-badge-title"),
+    modelEnabled: $("model-enabled"),
+    modelEnabledWrap: $("model-enabled-wrap"),
+    modelIdField: $("model-id-field"),
     modelEditorError: $("model-editor-error"),
     modelId: $("model-id"),
     modelName: $("model-name"),
@@ -70,6 +74,7 @@
     modelEffortMap: $("model-effort-map"),
     modelJson: $("model-json"),
     modelEditorSave: $("model-editor-save"),
+    modelEditorCancel: $("model-editor-cancel"),
   };
 
   const SUPPORTED_PROBE_APIS = new Set(["openai-completions", "openai-responses", "anthropic-messages"]);
@@ -313,6 +318,7 @@
     elements.modelCount.textContent = "";
     elements.modelsResult.hidden = true;
     state.modelEntries = [];
+    closeModelEditor();
   }
 
   function fillForm(provider) {
@@ -678,15 +684,13 @@
     for (const checkbox of elements.modelList.querySelectorAll('input[type="checkbox"]')) {
       checkbox.disabled = locked;
     }
-    for (const button of elements.modelList.querySelectorAll(".model-configure-button")) {
-      const entry = state.modelEntries.find((candidate) => candidate.id === button.dataset.modelId);
-      button.disabled = locked || !entry?.selected;
-    }
+    if (elements.modelEnabled) elements.modelEnabled.disabled = locked;
   }
 
   function renderModelSelection() {
     const query = elements.modelSearch.value.trim().toLocaleLowerCase();
     const fragment = document.createDocumentFragment();
+    const locked = state.formBusy || state.probeBusy;
     let visible = 0;
 
     for (const entry of state.modelEntries) {
@@ -696,59 +700,66 @@
       visible += 1;
 
       const item = document.createElement("li");
+      item.className = "model-row"
+        + (entry.id === state.editingModelId ? " active" : "")
+        + (entry.selected ? " selected" : "")
+        + (locked ? " disabled" : "");
+      item.dataset.modelId = entry.id;
+
       const label = document.createElement("label");
-      label.className = "model-checkbox-row";
+      label.className = "model-check";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = entry.selected;
-      checkbox.disabled = state.formBusy || state.probeBusy;
+      checkbox.disabled = locked;
+      checkbox.setAttribute("aria-label", `选择模型 ${entry.id}`);
+      checkbox.addEventListener("click", (event) => event.stopPropagation());
       checkbox.addEventListener("change", () => {
         entry.selected = checkbox.checked;
+        if (entry.id === state.editingModelId) elements.modelEnabled.checked = entry.selected;
         renderModelCount();
         renderModelSelection();
       });
 
       const text = document.createElement("span");
-      text.className = "model-checkbox-text";
+      text.className = "model-text";
       const id = document.createElement("strong");
       id.textContent = entry.id;
       id.title = entry.id;
       text.append(id);
-      if (name && name !== entry.id) {
-        const modelName = document.createElement("span");
-        modelName.textContent = name;
-        text.append(modelName);
+      const sub = name && name !== entry.id
+        ? name
+        : model && Number.isFinite(model.contextWindow)
+          ? `${Math.round(model.contextWindow / 1000)}k 上下文`
+          : model && typeof model.api === "string"
+            ? model.api
+            : "";
+      if (sub) {
+        const subEl = document.createElement("span");
+        subEl.textContent = sub;
+        text.append(subEl);
       }
-
       label.append(checkbox, text);
       item.append(label);
-      if (model.api) {
+
+      if (model && typeof model.api === "string") {
         const apiBadge = document.createElement("span");
-        apiBadge.className = "model-api-badge";
+        apiBadge.className = "model-api";
         apiBadge.textContent = model.api;
         apiBadge.title = model.baseUrl ? `${model.api} · ${model.baseUrl}` : model.api;
         item.append(apiBadge);
       }
-      if (entry.existing && !entry.discovered) {
-        const badge = document.createElement("span");
-        badge.className = "configured-model-badge";
-        badge.textContent = "当前配置 · 发现结果未包含";
-        item.append(badge);
-      }
-      const configureButton = document.createElement("button");
-      configureButton.className = "button secondary compact model-configure-button";
-      configureButton.dataset.modelId = entry.id;
-      configureButton.type = "button";
-      configureButton.textContent = "配置";
-      configureButton.disabled = !entry.selected || state.formBusy || state.probeBusy;
-      configureButton.addEventListener("click", () => openModelEditor(entry));
-      item.append(configureButton);
+
+      item.addEventListener("click", () => {
+        if (locked) return;
+        openModelEditor(entry);
+      });
       fragment.append(item);
     }
 
     if (visible === 0) {
       const empty = document.createElement("li");
-      empty.className = "model-list-empty";
+      empty.className = "model-row model-list-empty";
       empty.textContent = state.modelEntries.length === 0 ? "没有可选择的模型。" : "没有匹配的模型。";
       fragment.append(empty);
     }
@@ -871,7 +882,9 @@
   function closeModelEditor() {
     state.editingModelId = null;
     setAlert(elements.modelEditorError, "");
-    elements.modelEditorDialog.close();
+    elements.modelEditorForm.hidden = true;
+    elements.configEmpty.hidden = false;
+    renderModelSelection();
   }
 
   function openModelEditor(entry = null) {
@@ -890,7 +903,12 @@
       : {};
 
     state.editingModelId = entry?.id || null;
-    elements.modelEditorTitle.textContent = entry ? `配置 ${entry.id}` : "手动添加模型";
+    elements.modelEditorTitle.textContent = entry ? entry.id : "手动添加模型";
+    elements.modelApiBadgeTitle.textContent = model && typeof model.api === "string" ? model.api : "";
+    // 新建时可编辑 ID、隐藏“启用”开关；编辑已有模型时显示启用开关并同步勾选态
+    elements.modelIdField.style.display = entry ? "none" : "";
+    elements.modelEnabledWrap.style.display = entry ? "" : "none";
+    if (entry) elements.modelEnabled.checked = entry.selected;
     elements.modelId.value = model.id || "";
     elements.modelId.readOnly = Boolean(entry);
     elements.modelName.value = typeof model.name === "string" ? model.name : "";
@@ -923,8 +941,10 @@
     elements.modelEffortMap.value = formatJson(thinking.effortMap, {});
     elements.modelJson.value = formatJson(model, {});
     setAlert(elements.modelEditorError, "");
-    elements.modelEditorDialog.showModal();
-    elements.modelId.focus();
+    elements.configEmpty.hidden = true;
+    elements.modelEditorForm.hidden = false;
+    renderModelSelection();
+    if (!entry) elements.modelId.focus();
   }
 
   function saveModelEditor(event) {
@@ -1032,7 +1052,7 @@
       : null;
     if (entry) {
       entry.custom = structuredClone(model);
-      entry.selected = true;
+      entry.selected = elements.modelEnabled.checked;
     } else {
       state.modelEntries.push({
         id,
@@ -1043,13 +1063,24 @@
       });
     }
     state.dirty = true;
+    // 应用后保持窗格打开；若新建则切换为“编辑该模型”状态
+    state.editingModelId = id;
+    elements.modelApiBadgeTitle.textContent = typeof model.api === "string" ? model.api : "";
     if (elements.modelsResult.hidden) showModelDirectory("manual");
     else {
       setModelOptions(state.modelEntries.map((candidate) => candidate.id));
       renderModelCount();
       renderModelSelection();
     }
-    closeModelEditor();
+    // 新建成功后切到编辑视图（隐藏 ID 输入、显示启用开关）
+    const savedEntry = state.modelEntries.find((candidate) => candidate.id === id);
+    if (savedEntry) {
+      elements.modelEditorTitle.textContent = id;
+      elements.modelIdField.style.display = "none";
+      elements.modelEnabledWrap.style.display = "";
+      elements.modelEnabled.checked = savedEntry.selected;
+      elements.modelId.readOnly = true;
+    }
   }
 
   function setProbeBusy(busy, source) {
@@ -1266,11 +1297,14 @@
   });
   elements.addModelButton.addEventListener("click", () => openModelEditor());
   elements.modelEditorForm.addEventListener("submit", saveModelEditor);
-  elements.modelEditorClose.addEventListener("click", closeModelEditor);
   elements.modelEditorCancel.addEventListener("click", closeModelEditor);
-  elements.modelEditorDialog.addEventListener("close", () => {
-    state.editingModelId = null;
-    setAlert(elements.modelEditorError, "");
+  elements.modelEnabled.addEventListener("change", () => {
+    const entry = state.modelEntries.find((candidate) => candidate.id === state.editingModelId);
+    if (entry) {
+      entry.selected = elements.modelEnabled.checked;
+      renderModelCount();
+      renderModelSelection();
+    }
   });
   elements.modelSupportsTools.addEventListener("change", () => {
     elements.modelSupportsTools.dataset.configured = "true";
@@ -1278,6 +1312,23 @@
   elements.syncModelsButton.addEventListener("click", syncSelectedModels);
   elements.discoverButton.addEventListener("click", runDiscover);
   elements.probeButton.addEventListener("click", runProbe);
+
+  // ---- 主题切换：auto → light → dark 循环，并记住用户选择 ----
+  const THEME_KEY = "omp-models-theme";
+  const themeOrder = ["auto", "light", "dark"];
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    elements.themeToggle.title = `主题：${theme === "auto" ? "跟随系统" : theme === "light" ? "浅色" : "深色"}`;
+  }
+  let currentTheme = themeOrder.includes(localStorage.getItem(THEME_KEY))
+    ? localStorage.getItem(THEME_KEY)
+    : "auto";
+  applyTheme(currentTheme);
+  elements.themeToggle.addEventListener("click", () => {
+    currentTheme = themeOrder[(themeOrder.indexOf(currentTheme) + 1) % themeOrder.length];
+    applyTheme(currentTheme);
+    localStorage.setItem(THEME_KEY, currentTheme);
+  });
 
   loadProviders();
 })();

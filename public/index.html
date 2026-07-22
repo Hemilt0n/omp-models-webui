@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="auto">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <title>OMP Models</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
@@ -13,141 +13,144 @@
     <header class="topbar">
       <div class="brand" aria-label="OMP Models">
         <span class="brand-mark" aria-hidden="true"></span>
-        <div>
+        <div class="brand-text">
           <strong>OMP Models</strong>
-          <span>本地配置管理器</span>
+          <code class="config-path" id="config-path" title="">正在读取…</code>
         </div>
       </div>
-      <div class="config-location">
-        <span>配置文件</span>
-        <code id="config-path">正在读取…</code>
+      <div class="topbar-actions">
+        <button class="icon-button" id="theme-toggle" type="button" aria-label="切换深浅色" title="切换深浅色">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+        </button>
+        <button id="reload-button" class="button ghost compact" type="button">刷新</button>
       </div>
-      <button id="reload-button" class="button secondary compact" type="button">刷新</button>
     </header>
 
     <main class="shell">
       <aside class="sidebar" aria-labelledby="providers-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">PROVIDERS</p>
-            <h1 id="providers-title">模型服务商</h1>
-          </div>
-          <button id="new-button" class="button primary compact" type="button">新建</button>
+        <div class="sidebar-head">
+          <h1 id="providers-title">服务商</h1>
+          <button id="new-button" class="button primary compact" type="button">+ 新建</button>
         </div>
-        <div id="provider-list" class="provider-list" role="list" aria-busy="true"></div>
-        <p id="empty-state" class="empty-state" hidden>还没有 Provider。点击“新建”开始配置。</p>
+        <nav id="provider-list" class="provider-list" aria-label="服务商列表" aria-busy="true"></nav>
+        <p id="empty-state" class="empty-state" hidden>还没有服务商，点击“新建”开始配置。</p>
       </aside>
 
       <section id="editor" class="workspace" aria-labelledby="editor-title">
-        <div class="workspace-header">
-          <div>
-            <p id="editor-mode" class="eyebrow">NEW PROVIDER</p>
-            <h2 id="editor-title">新建 Provider</h2>
-          </div>
-          <span id="credential-badge" class="credential-badge" hidden>密钥已配置</span>
-        </div>
-
         <div id="page-error" class="alert error" role="alert" hidden></div>
         <div id="page-status" class="alert success" role="status" aria-live="polite" hidden></div>
 
-        <form id="provider-form" novalidate>
-          <div class="form-grid basics">
-            <div class="field">
-              <label for="provider-id">ID <span aria-hidden="true">*</span></label>
-              <input id="provider-id" name="id" required pattern="[a-z0-9][a-z0-9._-]{0,63}" maxlength="64" autocomplete="off" spellcheck="false" placeholder="例如 my-gateway" />
-              <small>保存后不可修改；用于在 OMP 中引用此 Provider。</small>
-            </div>
-            <div class="field wide">
-              <label for="base-url">Base URL <span aria-hidden="true">*</span></label>
-              <input id="base-url" name="baseUrl" type="url" required inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://api.example.com/v1" />
-            </div>
-            <div class="field wide">
-              <label for="api-key">API Key</label>
-              <div class="api-key-control">
-                <input id="api-key" name="apiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="输入 API Key（如服务需要）" aria-describedby="api-key-help" />
-                <button id="toggle-api-key" class="api-key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false" title="显示 API Key">
-                  <svg class="api-key-eye-show" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
-                    <circle cx="12" cy="12" r="2.5"></circle>
-                  </svg>
-                  <svg class="api-key-eye-hide" viewBox="0 0 24 24" aria-hidden="true" hidden>
-                    <path d="M3 3l18 18"></path>
-                    <path d="M2 12s3.5-6 10-6c2.2 0 4.1.7 5.6 1.7M22 12s-3.5 6-10 6c-2.2 0-4.1-.7-5.6-1.7"></path>
-                  </svg>
-                </button>
-              </div>
-              <small id="api-key-help">输入合法 Provider ID 后显示新 Key 的目标环境变量；实际值将写入 models.yml 相邻的 <code>.env</code>，YAML 引用该变量。</small>
-            </div>
-          </div>
-
-          <details class="advanced">
-            <summary>高级选项</summary>
-            <div class="form-grid advanced-grid">
-              <div class="field">
-                <label for="api-type">API 协议</label>
-                <select id="api-type" name="api">
-                  <option value="openai-completions">OpenAI Completions</option>
-                  <option value="openai-responses">OpenAI Responses</option>
-                  <option value="openai-codex-responses">OpenAI Codex Responses</option>
-                  <option value="azure-openai-responses">Azure OpenAI Responses</option>
-                  <option value="anthropic-messages">Anthropic Messages</option>
-                  <option value="google-generative-ai">Google Generative AI</option>
-                  <option value="google-gemini-cli">Google Gemini CLI</option>
-                  <option value="google-vertex">Google Vertex</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="discovery-type">discovery.type</label>
-                <input id="discovery-type" name="discoveryType" list="discovery-types" autocomplete="off" spellcheck="false" placeholder="例如 openai-models-list" />
-                <datalist id="discovery-types">
-                  <option value="openai-models-list"></option>
-                  <option value="proxy"></option>
-                  <option value="litellm"></option>
-                  <option value="ollama"></option>
-                  <option value="llama.cpp"></option>
-                  <option value="lm-studio"></option>
-                </datalist>
-              </div>
-              <div class="field checkbox-field">
-                <input id="auth-header" name="authHeader" type="checkbox" />
-                <label for="auth-header">使用 Authorization Bearer</label>
-              </div>
-              <div class="field checkbox-field">
-                <input id="disable-strict-tools" name="disableStrictTools" type="checkbox" />
-                <label for="disable-strict-tools">disableStrictTools</label>
-              </div>
-              <div class="field wide">
-                <label for="headers-json">headers JSON</label>
-                <textarea id="headers-json" name="headers" rows="5" spellcheck="false" aria-describedby="headers-help headers-error">{}</textarea>
-                <small id="headers-help">所有已存 Header 值均显示为 <code>__OMP_MODELS_WEBUI_SECRET__</code>；不修改时会保留原值，可输入新字符串替换。</small>
-                <small id="headers-error" class="field-error" aria-live="polite"></small>
-              </div>
-              <div class="field wide">
-                <label for="models-json">models JSON</label>
-                <textarea id="models-json" name="models" rows="7" spellcheck="false" aria-describedby="models-error">[]</textarea>
-                <small id="models-error" class="field-error" aria-live="polite"></small>
-              </div>
-            </div>
-          </details>
-
-          <div class="form-actions">
-            <button id="save-button" class="button primary" type="submit">保存配置</button>
-            <button id="delete-button" class="button danger" type="button" hidden>删除</button>
-          </div>
-        </form>
-
-        <section class="probe-panel" aria-labelledby="probe-title">
-          <div class="section-heading probe-heading">
+        <!-- 卡片 1：Provider 基础信息 -->
+        <section class="card" aria-labelledby="editor-title">
+          <header class="card-head">
             <div>
-              <p class="eyebrow">CONNECTION CHECK</p>
-              <h2 id="probe-title">发现与自检</h2>
+              <p id="editor-mode" class="eyebrow">NEW PROVIDER</p>
+              <h2 id="editor-title">新建 Provider</h2>
             </div>
-            <div class="probe-actions">
-              <button id="add-model-button" class="button secondary" type="button">手动添加模型</button>
-              <button id="discover-button" class="button secondary" type="button">发现模型</button>
-              <button id="probe-button" class="button secondary" type="button">运行自检</button>
+            <span id="credential-badge" class="badge success" hidden>密钥已配置</span>
+          </header>
+
+          <form id="provider-form" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="provider-id">ID <span aria-hidden="true">*</span></label>
+                <input id="provider-id" name="id" required pattern="[a-z0-9][a-z0-9._-]{0,63}" maxlength="64" autocomplete="off" spellcheck="false" placeholder="例如 my-gateway" />
+                <small>保存后不可修改；用于在 OMP 中引用此 Provider。</small>
+              </div>
+              <div class="field">
+                <label for="base-url">Base URL <span aria-hidden="true">*</span></label>
+                <input id="base-url" name="baseUrl" type="url" required inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://api.example.com/v1" />
+              </div>
+              <div class="field wide">
+                <label for="api-key">API Key</label>
+                <div class="api-key-control">
+                  <input id="api-key" name="apiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="输入 API Key（如服务需要）" aria-describedby="api-key-help" />
+                  <button id="toggle-api-key" class="api-key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false" title="显示 API Key">
+                    <svg class="api-key-eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                    <svg class="api-key-eye-hide" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                      <path d="M3 3l18 18"></path>
+                      <path d="M2 12s3.5-6 10-6c2.2 0 4.1.7 5.6 1.7M22 12s-3.5 6-10 6c-2.2 0-4.1-.7-5.6-1.7"></path>
+                    </svg>
+                  </button>
+                </div>
+                <small id="api-key-help"></small>
+              </div>
             </div>
-          </div>
+
+            <details class="advanced">
+              <summary>高级选项<span class="summary-hint">API 协议 · Headers · models JSON</span></summary>
+              <div class="form-grid advanced-grid">
+                <div class="field">
+                  <label for="api-type">API 协议</label>
+                  <select id="api-type" name="api">
+                    <option value="openai-completions">OpenAI Completions</option>
+                    <option value="openai-responses">OpenAI Responses</option>
+                    <option value="openai-codex-responses">OpenAI Codex Responses</option>
+                    <option value="azure-openai-responses">Azure OpenAI Responses</option>
+                    <option value="anthropic-messages">Anthropic Messages</option>
+                    <option value="google-generative-ai">Google Generative AI</option>
+                    <option value="google-gemini-cli">Google Gemini CLI</option>
+                    <option value="google-vertex">Google Vertex</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="discovery-type">discovery.type</label>
+                  <input id="discovery-type" name="discoveryType" list="discovery-types" autocomplete="off" spellcheck="false" placeholder="例如 openai-models-list" />
+                  <datalist id="discovery-types">
+                    <option value="openai-models-list"></option>
+                    <option value="proxy"></option>
+                    <option value="litellm"></option>
+                    <option value="ollama"></option>
+                    <option value="llama.cpp"></option>
+                    <option value="lm-studio"></option>
+                  </datalist>
+                </div>
+                <div class="field checkbox-field">
+                  <input id="auth-header" name="authHeader" type="checkbox" />
+                  <label for="auth-header">使用 Authorization Bearer</label>
+                </div>
+                <div class="field checkbox-field">
+                  <input id="disable-strict-tools" name="disableStrictTools" type="checkbox" />
+                  <label for="disable-strict-tools">disableStrictTools</label>
+                </div>
+                <div class="field wide">
+                  <label for="headers-json">headers JSON</label>
+                  <textarea id="headers-json" name="headers" rows="5" spellcheck="false" aria-describedby="headers-help headers-error">{}</textarea>
+                  <small id="headers-help">所有已存 Header 值均显示为 <code>__OMP_MODELS_WEBUI_SECRET__</code>；不修改时会保留原值，可输入新字符串替换。</small>
+                  <small id="headers-error" class="field-error" aria-live="polite"></small>
+                </div>
+                <div class="field wide">
+                  <label for="models-json">models JSON</label>
+                  <textarea id="models-json" name="models" rows="7" spellcheck="false" aria-describedby="models-error">[]</textarea>
+                  <small id="models-error" class="field-error" aria-live="polite"></small>
+                </div>
+              </div>
+            </details>
+
+            <div class="card-actions">
+              <button id="save-button" class="button primary" type="submit">保存配置</button>
+              <button id="delete-button" class="button ghost danger" type="button" hidden>删除</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- 卡片 2：发现与模型 -->
+        <section class="card" aria-labelledby="probe-title">
+          <header class="card-head">
+            <div>
+              <p class="eyebrow">DISCOVERY</p>
+              <h2 id="probe-title">发现与模型</h2>
+            </div>
+            <div class="head-actions">
+              <button id="add-model-button" class="button ghost compact" type="button">手动添加</button>
+              <button id="discover-button" class="button secondary compact" type="button">发现模型</button>
+              <button id="probe-button" class="button secondary compact" type="button">运行自检</button>
+            </div>
+          </header>
 
           <div class="inference-option">
             <div class="checkbox-field">
@@ -163,27 +166,142 @@
           <div id="probe-error" class="alert error" role="alert" hidden></div>
           <div id="probe-summary" class="probe-summary" role="status" aria-live="polite">尚未运行自检。</div>
           <div id="check-list" class="check-grid" aria-live="polite"></div>
-          <div id="models-result" class="models-result" hidden>
+
+          <div id="models-result" class="models-block" hidden>
             <div class="models-heading">
               <div>
                 <h3>可配置模型</h3>
                 <p id="discovery-source" class="discovery-source" role="status" aria-live="polite"></p>
               </div>
-              <span id="model-count" aria-live="polite"></span>
+              <span id="model-count" class="model-count" aria-live="polite"></span>
             </div>
-            <div id="discovery-warning" class="alert warning discovery-warning" role="status" aria-live="polite" hidden></div>
-            <div class="model-toolbar">
+            <div id="discovery-warning" class="alert warning" role="status" aria-live="polite" hidden></div>
+
+            <div class="models-toolbar">
               <div class="model-search">
-                <label for="model-search">搜索模型</label>
-                <input id="model-search" type="search" autocomplete="off" spellcheck="false" placeholder="按 ID 或名称搜索" />
+                <svg viewBox="0 0 24 24" class="search-icon" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="model-search" type="search" autocomplete="off" spellcheck="false" placeholder="搜索模型…" aria-label="搜索模型" />
               </div>
-              <div class="model-selection-actions" aria-label="批量选择模型">
-                <button id="select-all-models" class="button secondary compact" type="button">全选</button>
-                <button id="select-no-models" class="button secondary compact" type="button">全不选</button>
+              <div class="seg" aria-label="批量选择模型">
+                <button id="select-all-models" class="seg-btn" type="button">全选</button>
+                <button id="select-no-models" class="seg-btn" type="button">全不选</button>
               </div>
             </div>
-            <ul id="model-list" class="model-select-list" aria-label="模型选择列表"></ul>
-            <div class="model-sync-actions">
+
+            <div class="models-split">
+              <ul id="model-list" class="model-list" aria-label="模型选择列表"></ul>
+
+              <!-- 右：模型配置窗格（替代原弹窗） -->
+              <div class="model-config" id="model-config">
+                <div class="config-empty" id="config-empty">
+                  <svg viewBox="0 0 24 24" class="config-empty-icon" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+                  <p>在左侧选择一个模型<br />这里会展开它的配置</p>
+                </div>
+
+                <form class="config-body" id="model-editor-form" hidden novalidate>
+                  <header class="config-head">
+                    <div class="config-title">
+                      <strong id="model-editor-title">添加模型</strong>
+                      <span class="model-api" id="model-api-badge-title"></span>
+                    </div>
+                    <label class="switch" id="model-enabled-wrap">
+                      <input type="checkbox" id="model-enabled" />
+                      <span>启用</span>
+                    </label>
+                  </header>
+
+                  <div id="model-editor-error" class="alert error" role="alert" hidden></div>
+
+                  <div class="config-form">
+                    <div class="field span2" id="model-id-field">
+                      <label for="model-id">模型 ID *</label>
+                      <input id="model-id" required autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="field">
+                      <label for="model-name">名称</label>
+                      <input id="model-name" autocomplete="off" />
+                    </div>
+                    <div class="field">
+                      <label for="model-api">模型 API 协议</label>
+                      <select id="model-api">
+                        <option value="">继承 Provider</option>
+                        <option value="openai-completions">OpenAI Completions</option>
+                        <option value="openai-responses">OpenAI Responses</option>
+                        <option value="openai-codex-responses">OpenAI Codex Responses</option>
+                        <option value="azure-openai-responses">Azure OpenAI Responses</option>
+                        <option value="anthropic-messages">Anthropic Messages</option>
+                        <option value="google-generative-ai">Google Generative AI</option>
+                        <option value="google-gemini-cli">Google Gemini CLI</option>
+                        <option value="google-vertex">Google Vertex</option>
+                      </select>
+                    </div>
+                    <div class="field span2">
+                      <label for="model-base-url">模型 Base URL</label>
+                      <input id="model-base-url" type="url" placeholder="留空则继承 Provider" />
+                    </div>
+                    <div class="field">
+                      <label for="model-context-window">contextWindow</label>
+                      <input id="model-context-window" type="number" min="1" step="1" />
+                    </div>
+                    <div class="field">
+                      <label for="model-max-tokens">maxTokens</label>
+                      <input id="model-max-tokens" type="number" min="1" step="1" />
+                    </div>
+                    <div class="field checkbox-field">
+                      <input id="model-reasoning" type="checkbox" />
+                      <label for="model-reasoning">reasoning</label>
+                    </div>
+                    <div class="field checkbox-field">
+                      <input id="model-supports-tools" type="checkbox" />
+                      <label for="model-supports-tools">supportsTools</label>
+                    </div>
+                    <div class="field">
+                      <label for="model-thinking-mode">Thinking 模式</label>
+                      <select id="model-thinking-mode">
+                        <option value="">不配置</option>
+                        <option value="effort">effort</option>
+                        <option value="budget">budget</option>
+                        <option value="google-level">google-level</option>
+                        <option value="anthropic-adaptive">anthropic-adaptive</option>
+                        <option value="anthropic-budget-effort">anthropic-budget-effort</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="model-thinking-efforts">Efforts</label>
+                      <input id="model-thinking-efforts" placeholder="minimal, low, medium, high…" />
+                    </div>
+                    <div class="field">
+                      <label for="model-default-effort">默认 Effort</label>
+                      <select id="model-default-effort">
+                        <option value="">不配置</option>
+                        <option value="minimal">minimal</option>
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                        <option value="xhigh">xhigh</option>
+                        <option value="max">max</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="model-effort-map">Effort Map JSON</label>
+                      <textarea id="model-effort-map" rows="3" spellcheck="false">{}</textarea>
+                    </div>
+                    <details class="advanced span2">
+                      <summary>完整模型 JSON</summary>
+                      <small>支持 api、baseUrl、thinking、compat、cost、headers、remoteCompaction 等全部 OMP 模型字段。上方常用字段会覆盖同名值。</small>
+                      <textarea id="model-json" rows="10" spellcheck="false"></textarea>
+                    </details>
+                  </div>
+
+                  <footer class="config-foot">
+                    <button id="model-editor-save" class="button primary compact" type="submit">应用</button>
+                    <button id="model-editor-cancel" class="button ghost compact" type="button">取消</button>
+                  </footer>
+                </form>
+              </div>
+            </div>
+
+            <div class="sync-bar">
               <button id="sync-models-button" class="button primary" type="button">更新 models.yml</button>
               <small id="model-sync-help">更新会固定当前选择并停止运行时自动发现；未勾选模型只从配置中排除，仍保留在当前目录中。重新打开页面后可点“发现模型”找回。</small>
             </div>
@@ -191,103 +309,5 @@
         </section>
       </section>
     </main>
-    <dialog id="model-editor-dialog" class="model-editor-dialog">
-      <form id="model-editor-form" method="dialog">
-        <div class="model-editor-heading">
-          <div>
-            <p class="eyebrow">MODEL CONFIG</p>
-            <h2 id="model-editor-title">添加模型</h2>
-          </div>
-          <button id="model-editor-close" class="button secondary compact" type="button">关闭</button>
-        </div>
-        <p class="model-editor-help">优先使用 OMP Registry 元数据。没有元数据时使用可编辑默认值；高级 JSON 可配置 OMP 支持的全部模型字段。</p>
-        <div id="model-editor-error" class="alert error" role="alert" hidden></div>
-        <div class="form-grid model-editor-grid">
-          <div class="field">
-            <label for="model-id">模型 ID *</label>
-            <input id="model-id" required autocomplete="off" spellcheck="false" />
-          </div>
-          <div class="field">
-            <label for="model-name">名称</label>
-            <input id="model-name" autocomplete="off" />
-          </div>
-          <div class="field">
-            <label for="model-api">模型 API 协议</label>
-            <select id="model-api">
-              <option value="">继承 Provider</option>
-              <option value="openai-completions">OpenAI Completions</option>
-              <option value="openai-responses">OpenAI Responses</option>
-              <option value="openai-codex-responses">OpenAI Codex Responses</option>
-              <option value="azure-openai-responses">Azure OpenAI Responses</option>
-              <option value="anthropic-messages">Anthropic Messages</option>
-              <option value="google-generative-ai">Google Generative AI</option>
-              <option value="google-gemini-cli">Google Gemini CLI</option>
-              <option value="google-vertex">Google Vertex</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="model-base-url">模型 Base URL</label>
-            <input id="model-base-url" type="url" placeholder="留空则继承 Provider" />
-          </div>
-          <div class="field">
-            <label for="model-context-window">contextWindow</label>
-            <input id="model-context-window" type="number" min="1" step="1" />
-          </div>
-          <div class="field">
-            <label for="model-max-tokens">maxTokens</label>
-            <input id="model-max-tokens" type="number" min="1" step="1" />
-          </div>
-          <div class="checkbox-field">
-            <input id="model-reasoning" type="checkbox" />
-            <label for="model-reasoning">reasoning</label>
-          </div>
-          <div class="checkbox-field">
-            <input id="model-supports-tools" type="checkbox" />
-            <label for="model-supports-tools">supportsTools</label>
-          </div>
-          <div class="field">
-            <label for="model-thinking-mode">Thinking 模式</label>
-            <select id="model-thinking-mode">
-              <option value="">不配置</option>
-              <option value="effort">effort</option>
-              <option value="budget">budget</option>
-              <option value="google-level">google-level</option>
-              <option value="anthropic-adaptive">anthropic-adaptive</option>
-              <option value="anthropic-budget-effort">anthropic-budget-effort</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="model-thinking-efforts">Efforts</label>
-            <input id="model-thinking-efforts" placeholder="minimal, low, medium, high, xhigh, max" />
-          </div>
-          <div class="field">
-            <label for="model-default-effort">默认 Effort</label>
-            <select id="model-default-effort">
-              <option value="">不配置</option>
-              <option value="minimal">minimal</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="xhigh">xhigh</option>
-              <option value="max">max</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="model-effort-map">Effort Map JSON</label>
-            <textarea id="model-effort-map" rows="4" spellcheck="false">{}</textarea>
-          </div>
-          <details class="advanced field wide" open>
-            <summary>完整模型 JSON</summary>
-            <small>支持 api、baseUrl、thinking、compat、cost、headers、remoteCompaction 等全部 OMP 模型字段。上方常用字段会覆盖这里的同名值。</small>
-            <textarea id="model-json" rows="16" spellcheck="false"></textarea>
-          </details>
-        </div>
-        <div class="form-actions model-editor-actions">
-          <button id="model-editor-save" class="button primary" type="submit">保存到选择目录</button>
-          <button id="model-editor-cancel" class="button secondary" type="button">取消</button>
-        </div>
-      </form>
-    </dialog>
-
   </body>
 </html>
