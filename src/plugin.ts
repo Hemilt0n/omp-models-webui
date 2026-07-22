@@ -122,7 +122,7 @@ export function helpText(): string {
 		"  /models-ui help        显示此帮助",
 		"",
 		"服务仅监听 127.0.0.1；首选端口被占用时会自动选择下一个可用端口。",
-		"重复执行命令会复用已在运行的服务，而不是启动多个实例。",
+		"重复执行命令会复用已在运行的服务并直接打开页面，不会启动多个实例。",
 	].join("\n");
 }
 
@@ -155,7 +155,12 @@ export function openBrowser(url: string): boolean {
 // Command handler
 // ============================================================================
 
-async function handleModelsUi(args: string, ctx: ExtensionCommandContext, manager: ModelsUiServerManager): Promise<void> {
+async function handleModelsUi(
+	args: string,
+	ctx: ExtensionCommandContext,
+	manager: ModelsUiServerManager,
+	open: (url: string) => boolean = openBrowser,
+): Promise<void> {
 	const command = parseModelsUiCommand(args);
 	switch (command.kind) {
 		case "help": {
@@ -180,11 +185,13 @@ async function handleModelsUi(args: string, ctx: ExtensionCommandContext, manage
 				return;
 			}
 			if (info.reused) {
+				// 复用已运行的服务时也直接打开页面：用户执行命令的意图是进入界面。
+				open(info.url);
 				ctx.ui.notify(`OMP 模型管理服务已在运行：${info.url}`, "info");
 				return;
 			}
 			// startServer only resolves after a successful bind, so the service is listening now.
-			openBrowser(info.url);
+			open(info.url);
 			ctx.ui.notify(
 				info.port === command.port
 					? `OMP 模型管理服务已启动：${info.url}`
@@ -195,6 +202,8 @@ async function handleModelsUi(args: string, ctx: ExtensionCommandContext, manage
 		}
 	}
 }
+
+export { handleModelsUi };
 
 // ============================================================================
 // Extension factory

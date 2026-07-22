@@ -6,9 +6,11 @@ import { ConfigStore } from "../src/config-store";
 import { DEFAULT_SERVER_PORT, isPortInUseError, startServer } from "../src/server";
 import {
 	ModelsUiServerManager,
+	handleModelsUi,
 	helpText,
 	parseModelsUiCommand,
 } from "../src/plugin";
+import type { ExtensionCommandContext } from "../src/omp-extension";
 
 // Track every server/tempdir created so nothing leaks across tests (Bun servers
 // are ref'd and would keep the process alive if left running).
@@ -144,6 +146,41 @@ describe("ModelsUiServerManager", () => {
 			const response = await fetch(`http://${external.hostname}:${external.port}/`);
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe("blocker");
+		} finally {
+			manager.stop();
+		}
+	});
+});
+
+describe("handleModelsUi", () => {
+	test("opens the browser on fresh start and again when reusing the running server", async () => {
+		const port = await freePort();
+		const manager = new ModelsUiServerManager();
+		const opened: string[] = [];
+		const notices: string[] = [];
+		const ctx = {
+			ui: {
+				notify: (message: string) => {
+					notices.push(message);
+				},
+				setStatus: () => {},
+			},
+			cwd: process.cwd(),
+			hasPendingMessages: () => false,
+		} as unknown as ExtensionCommandContext;
+		const open = (url: string): boolean => {
+			opened.push(url);
+			return true;
+		};
+		try {
+			await handleModelsUi(String(port), ctx, manager, open);
+			expect(manager.running).toBe(true);
+			expect(opened).toEqual([`http://127.0.0.1:${port}`]);
+
+			// 重复执行：复用已运行的服务，仍然直接打开页面。
+			await handleModelsUi(String(port), ctx, manager, open);
+			expect(opened).toEqual([`http://127.0.0.1:${port}`, `http://127.0.0.1:${port}`]);
+			expect(notices.at(-1)).toContain("已在运行");
 		} finally {
 			manager.stop();
 		}
