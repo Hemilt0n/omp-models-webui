@@ -16,7 +16,20 @@
     "provider",
     "web-ui"
   ],
+  "omp": {
+    "extensions": [
+      "./src/plugin.ts"
+    ]
+  },
   "type": "module",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "files": [
+    "src",
+    "public",
+    "README.md"
+  ],
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
@@ -28,5 +41,8 @@
   "devDependencies": {
     "@types/bun": "^1.3.14",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@oh-my-pi/pi-coding-agent": ">=16"
   }
 }
