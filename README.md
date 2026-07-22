@@ -259,11 +259,9 @@ cd omp-models-webui
 omp plugin link .
 ```
 
-从 npm 或 Git 安装：
+从 Git 安装：
 
 ```bash
-omp plugin install omp-models-webui
-# 或直接指定 Git 仓库
 omp plugin install github:Hemilt0n/omp-models-webui
 ```
 
