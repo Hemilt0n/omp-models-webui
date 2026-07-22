@@ -552,21 +552,52 @@ export function createRequestHandler(options: RequestHandlerOptions = {}): (requ
   };
 }
 
+export const DEFAULT_SERVER_PORT = 4380;
+
 export interface StartServerOptions {
   port?: number;
   store?: ConfigStore;
+  /** When true, bind to the next free port when the preferred one is occupied. */
+  autoPort?: boolean;
+  /** Maximum ports to probe when `autoPort` is enabled (default 100). */
+  maxPortAttempts?: number;
 }
 
-export function startServer(options: StartServerOptions = {}): Bun.Server<unknown> {
-  const configuredPort = options.port ?? Number(process.env.MODELS_WEBUI_PORT ?? 4380);
+/** True when a thrown error means the requested port is already bound. */
+export function isPortInUseError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /in use|EADDRINUSE/i.test(message);
+}
+
+function resolvePreferredPort(port: number | undefined): number {
+  const configuredPort = port ?? Number(process.env.MODELS_WEBUI_PORT ?? DEFAULT_SERVER_PORT);
   if (!Number.isInteger(configuredPort) || configuredPort < 1 || configuredPort > 65_535) {
     throw new Error("MODELS_WEBUI_PORT must be an integer between 1 and 65535");
   }
-  return Bun.serve({
-    hostname: "127.0.0.1",
-    port: configuredPort,
-    fetch: createRequestHandler({ store: options.store }),
-  });
+  return configuredPort;
+}
+
+export function startServer(options: StartServerOptions = {}): Bun.Server<unknown> {
+  const preferredPort = resolvePreferredPort(options.port);
+  const handler = createRequestHandler({ store: options.store });
+
+  if (!options.autoPort) {
+    return Bun.serve({ hostname: "127.0.0.1", port: preferredPort, fetch: handler });
+  }
+
+  const maxAttempts = options.maxPortAttempts ?? 100;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const candidate = preferredPort + attempt;
+    if (candidate > 65_535) break;
+    try {
+      return Bun.serve({ hostname: "127.0.0.1", port: candidate, fetch: handler });
+    } catch (error) {
+      lastError = error;
+      if (!isPortInUseError(error)) throw error;
+    }
+  }
+  throw lastError ?? new Error(`No available port found near ${preferredPort}`);
 }
 
 if (import.meta.main) {

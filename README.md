@@ -4,6 +4,8 @@
 
 它把 Provider、凭证、模型发现、模型级参数和连接自检集中到一个轻量 Web UI 中，同时保持 OMP 原生配置语义：界面最终读写的仍然是 `~/.omp/agent/models.yml`，不会引入专有配置格式或后台数据库。
 
+它既能作为独立 Web 服务运行（`bun run start`），也可以安装为 OMP 插件，在 OMP 会话中通过 `/models-ui` 命令启动（见[作为 OMP 插件运行](#作为-omp-插件运行)）。两种形态共用同一套配置、发现和安全逻辑。
+
 > 本项目默认只监听 `127.0.0.1`。它是本地管理工具，不应直接暴露到公网。
 
 ## 项目定位
@@ -244,6 +246,62 @@ bun run start
 
 服务器始终绑定 `127.0.0.1`，环境变量不能将其改为公网地址。
 
+## 作为 OMP 插件运行
+
+本项目在 `package.json` 中声明了 `omp.extensions` 入口（`src/plugin.ts`），因此可作为 OMP 扩展安装。插件是现有 Web 服务的“薄壳”：只负责命令注册、服务生命周期和会话退出清理，不复制任何配置、发现或安全实现。OMP 退出时，由插件启动的服务会被关闭；独立 `bun run start` 启动的进程不受影响。
+
+### 安装
+
+从本地仓库链接（开发或本地使用，推荐）：
+
+```bash
+cd omp-models-webui
+omp plugin link .
+```
+
+从 npm 或 Git 安装：
+
+```bash
+omp plugin install omp-models-webui
+# 或直接指定 Git 仓库
+omp plugin install github:Hemilt0n/omp-models-webui
+```
+
+安装后重启 OMP，使用 `/models-ui` 即可发现命令。用 `omp plugin list` 确认已安装并启用。
+
+### 启动与控制
+
+在任意 OMP 会话中：
+
+```text
+/models-ui            启动（或复用）本地管理服务并打开浏览器
+/models-ui 4390       使用 4390 作为首选端口启动
+/models-ui status     查看正在运行的服务地址
+/models-ui stop       停止由插件启动的服务
+/models-ui help       显示用法
+```
+
+行为说明：
+
+- 默认监听 `127.0.0.1`，首选端口 `4380`；端口被占用时自动选择下一个可用端口，输出中显示实际地址。
+- 重复执行 `/models-ui` 会复用已在运行的服务，不会启动多个实例。
+- 服务确认监听成功后才会尝试打开浏览器；宿主无打开能力时仅输出 URL，请手动复制。
+- OMP 会话退出时，插件启动的服务会被自动关闭。
+
+### 卸载
+
+```bash
+omp plugin uninstall omp-models-webui
+```
+
+### 故障排查
+
+- **命令不可见**：重启 OMP；运行 `omp plugin list` 确认已安装且未被禁用；查看当天日志 `~/.omp/logs/omp.$(date +%F).log` 中的扩展加载诊断。
+- **端口被占用**：`/models-ui` 会自动换到下一个可用端口并在输出中显示实际地址；也可用 `/models-ui <端口>` 指定首选端口。
+- **浏览器没有自动打开**：插件调用系统 `open`（macOS）或 `xdg-open`（Linux）打开 URL，调用失败时仅输出地址。手动复制地址访问即可。
+- **服务没有随会话退出关闭**：确认该服务是通过 `/models-ui` 启动的（受插件生命周期管理），而非独立 `bun run start`（独立进程，不在插件控制范围内）。
+- **仍想用独立方式**：`bun run start` 不受影响，继续按[安装与运行](#安装与运行)的说明使用。
+
 ## 推荐工作流
 
 1. 选择已有 Provider，检查当前已配置模型。
@@ -278,12 +336,14 @@ public/
   app.js           Provider、发现、选择、编辑和同步交互
   styles.css       本地 UI 样式
 src/
-  config-store.ts  YAML/.env 脱敏、修订、锁和原子写入
-  discovery.ts     多端点发现、OMP Registry 补全和回退
-  probe.ts         分层连接与可选推理检查
-  server.ts        Bun HTTP API、校验和静态资源
+  config-store.ts    YAML/.env 脱敏、修订、锁和原子写入
+  discovery.ts       多端点发现、OMP Registry 补全和回退
+  probe.ts           分层连接与可选推理检查
+  server.ts          Bun HTTP API、校验、静态资源和端口选择
+  plugin.ts          OMP 扩展入口，注册 /models-ui 命令与服务生命周期
+  omp-extension.d.ts OMP 扩展 API 的本地类型声明
 test/
-  *.test.ts        配置、安全、发现、Probe 和 API 合约测试
+  *.test.ts          配置、安全、发现、Probe、API 与插件生命周期测试
 ```
 
 ### HTTP API
