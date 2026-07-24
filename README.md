@@ -176,6 +176,8 @@ providers:
 
 显示既有 Key 不会把它当成用户修改，也不会在保存时改写凭证。只有用户实际编辑 API Key 输入框时，保存请求才携带新值，并继续使用上述 `.env` 与 YAML 引用分离存储。
 
+OMP 只在进程启动时解析一次相邻 `.env`。作为 OMP 插件运行时，保存新 Key 后插件会立即把它写入当前进程的 `process.env`（即 OMP 运行时实时读取的 `Bun.env`/`$env`，每个请求按需解析），因此**无需重启 OMP**，切换到对应模型即可生效。通过独立 `bun run start`（独立进程）保存的 Key 仍需重启 OMP 才能被识别。
+
 ### Header
 
 Provider 和模型级 Header 在返回浏览器前统一替换为：
@@ -285,6 +287,7 @@ omp plugin install github:Hemilt0n/omp-models-webui
 - 重复执行 `/models-ui` 会复用已在运行的服务并直接打开页面，不会启动多个实例。
 - 服务确认监听成功后才会尝试打开浏览器；宿主无打开能力时仅输出 URL，请手动复制。
 - OMP 会话退出时，插件启动的服务会被自动关闭。
+- 在插件模式下保存 API Key 后，运行中的 OMP 无需重启即可读取（同一进程内写入 `process.env`）；独立 `bun run start` 是独立进程，保存后仍需重启 OMP。
 
 ### 卸载
 

@@ -2,10 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConfigStore } from "../src/config-store";
+import { ConfigStore, apiKeyEnvironmentName } from "../src/config-store";
 import { DEFAULT_SERVER_PORT, isPortInUseError, startServer } from "../src/server";
 import {
 	ModelsUiServerManager,
+	createPluginStore,
 	handleModelsUi,
 	helpText,
 	parseModelsUiCommand,
@@ -222,5 +223,48 @@ describe("helpText", () => {
 		expect(text).toContain("status");
 		expect(text).toContain("help");
 		expect(text).toContain("127.0.0.1");
+	});
+});
+
+describe("createPluginStore env injection", () => {
+	test("mirrors a saved API key into the live process environment", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "omp-plugin-env-"));
+		tempDirs.push(directory);
+		const path = join(directory, "models.yml");
+		await Bun.write(path, "providers:\n  acme:\n    baseUrl: https://acme.example\n    apiKey: OLD\n");
+		const envName = apiKeyEnvironmentName("acme");
+		const previous = process.env[envName];
+		delete process.env[envName];
+		try {
+			const store = createPluginStore(path);
+			const before = await store.list();
+			await store.put("acme", {
+				revision: before.revision,
+				definition: { baseUrl: "https://acme.example", api: "openai-responses" },
+				apiKey: "live-injected-secret",
+			});
+			// process.env === Bun.env (OMP's $env), read live per request.
+			expect(process.env[envName]).toBe("live-injected-secret");
+		} finally {
+			if (previous === undefined) delete process.env[envName];
+			else process.env[envName] = previous;
+		}
+	});
+
+	test("a store without the hook leaves the process environment untouched", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "omp-plugin-env-"));
+		tempDirs.push(directory);
+		const path = join(directory, "models.yml");
+		await Bun.write(path, "providers:\n  acme:\n    baseUrl: https://acme.example\n    apiKey: OLD\n");
+		const envName = apiKeyEnvironmentName("acme");
+		delete process.env[envName];
+		const store = new ConfigStore(path);
+		const before = await store.list();
+		await store.put("acme", {
+			revision: before.revision,
+			definition: { baseUrl: "https://acme.example", api: "openai-responses" },
+			apiKey: "never-injected",
+		});
+		expect(process.env[envName]).toBeUndefined();
 	});
 });
