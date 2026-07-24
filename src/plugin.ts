@@ -10,6 +10,7 @@
  */
 import type { ExtensionAPI, ExtensionCommandContext } from "./omp-extension";
 import { DEFAULT_SERVER_PORT, startServer, type StartServerOptions } from "./server";
+import { ConfigStore } from "./config-store";
 
 // ============================================================================
 // Server lifecycle manager (dependency-free, unit-testable)
@@ -179,7 +180,7 @@ async function handleModelsUi(
 		case "start": {
 			let info: ManagedServerInfo;
 			try {
-				info = manager.start(command.port);
+				info = manager.start(command.port, { store: getPluginStore() });
 			} catch (error) {
 				ctx.ui.notify(`启动失败：${error instanceof Error ? error.message : String(error)}`, "error");
 				return;
@@ -211,6 +212,28 @@ export { handleModelsUi };
 
 /** Module-level manager: one per process, reused across command invocations. */
 const manager = new ModelsUiServerManager();
+/**
+ * ConfigStore whose `onApiKeyPersisted` hook mirrors a freshly saved API key
+ * into the live process environment. OMP parses `.env` only once at process
+ * start, so without this an already-running OMP cannot see keys added
+ * mid-session and reports the new model as unauthenticated. In Bun
+ * `process.env` is the same reference as OMP's `Bun.env`/`$env`, which is read
+ * live per request, so the new key takes effect on the next API call — no
+ * restart needed. Only meaningful when the plugin runs in-process with OMP.
+ */
+export function createPluginStore(path?: string): ConfigStore {
+	return new ConfigStore(path, {
+		onApiKeyPersisted: (envName, value) => {
+			process.env[envName] = value;
+		},
+	});
+}
+
+let pluginStore: ConfigStore | null = null;
+function getPluginStore(): ConfigStore {
+	if (!pluginStore) pluginStore = createPluginStore();
+	return pluginStore;
+}
 
 export default function modelsUiPlugin(pi: ExtensionAPI): void {
 	pi.setLabel("OMP Models Web UI");

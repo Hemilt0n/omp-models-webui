@@ -326,3 +326,68 @@ describe("ConfigStore", () => {
     expect(await readFile(path, "utf8")).not.toContain("removable:");
   });
 });
+
+describe("ConfigStore onApiKeyPersisted hook", () => {
+  function recordingStore(path: string) {
+    const calls: { envName: string; value: string }[] = [];
+    const store = new ConfigStore(path, {
+      onApiKeyPersisted: (envName, value) => calls.push({ envName, value }),
+    });
+    return { store, calls };
+  }
+
+  test("fires with the env-var name and plaintext value after a successful put", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-hook-"));
+    temporaryDirectories.push(directory);
+    const path = join(directory, "models.yml");
+    await Bun.write(path, "providers:\n  acme:\n    baseUrl: https://acme.example\n    apiKey: OLD\n");
+    const { store, calls } = recordingStore(path);
+    const before = await store.list();
+
+    await store.put("acme", {
+      revision: before.revision,
+      definition: { baseUrl: "https://acme.example", api: "openai-responses" },
+      apiKey: "plaintext-secret",
+    });
+
+    expect(calls).toEqual([{ envName: apiKeyEnvironmentName("acme"), value: "plaintext-secret" }]);
+    // The hook fires only after the .env is durably written (value may be quoted).
+    const envFile = await readFile(join(directory, ".env"), "utf8");
+    expect(envFile).toContain(apiKeyEnvironmentName("acme"));
+    expect(envFile).toContain("plaintext-secret");
+  });
+
+  test("does not fire when no API key is submitted", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-hook-"));
+    temporaryDirectories.push(directory);
+    const path = join(directory, "models.yml");
+    await Bun.write(path, "providers:\n  acme:\n    baseUrl: https://acme.example\n    apiKey: OLD\n");
+    const { store, calls } = recordingStore(path);
+    const before = await store.list();
+
+    await store.put("acme", {
+      revision: before.revision,
+      definition: { baseUrl: "https://acme.example", api: "openai-responses" },
+    });
+
+    expect(calls).toEqual([]);
+  });
+
+  test("does not fire when the put is rejected by a revision conflict", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-hook-"));
+    temporaryDirectories.push(directory);
+    const path = join(directory, "models.yml");
+    await Bun.write(path, "providers:\n  acme:\n    baseUrl: https://acme.example\n    apiKey: OLD\n");
+    const { store, calls } = recordingStore(path);
+
+    await expect(
+      store.put("acme", {
+        revision: "stale-revision",
+        definition: { baseUrl: "https://acme.example" },
+        apiKey: "should-not-persist",
+      }),
+    ).rejects.toBeInstanceOf(RevisionConflictError);
+
+    expect(calls).toEqual([]);
+  });
+});

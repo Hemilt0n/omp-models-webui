@@ -475,13 +475,27 @@ async function writeIfUnchanged(
   await atomicWrite(path, content, mode);
 }
 
+export interface ConfigStoreOptions {
+  /**
+   * Called after a plaintext API key is durably persisted to the adjacent
+   * `.env`, receiving the env-var name and plaintext value. The OMP plugin uses
+   * it to mirror the value into the running process environment so an
+   * already-started OMP reads the new key without a restart (`.env` is parsed
+   * only once, at process start). Defaults to no-op; standalone mode does not
+   * register it.
+   */
+  onApiKeyPersisted?: (envName: string, value: string) => void;
+}
+
 export class ConfigStore {
   readonly path: string;
   readonly envPath: string;
+  private readonly onApiKeyPersisted?: (envName: string, value: string) => void;
 
-  constructor(path = defaultModelsPath()) {
+  constructor(path = defaultModelsPath(), options: ConfigStoreOptions = {}) {
     this.path = path;
     this.envPath = join(dirname(path), ".env");
+    this.onApiKeyPersisted = options.onApiKeyPersisted;
   }
 
   async list(): Promise<ProvidersSnapshot> {
@@ -594,6 +608,7 @@ export class ConfigStore {
 
       let updatedEnvSource = envSource;
       let envWritten = false;
+      let persistedApiKey: { name: string; value: string } | null = null;
       if (input.apiKey != null && input.apiKey.trim() !== "") {
         const environmentName = apiKeyEnvironmentName(id);
         updatedEnvSource = updateEnvSource(envSource, environmentName, input.apiKey);
@@ -606,6 +621,7 @@ export class ConfigStore {
         await writeIfUnchanged(this.envPath, envSource, updatedEnvSource, 0o600);
         envWritten = true;
         provider.set("apiKey", environmentName);
+        persistedApiKey = { name: environmentName, value: input.apiKey };
       }
 
       if (!isMap(existing)) providers.set(id, provider);
@@ -625,6 +641,9 @@ export class ConfigStore {
         throw error;
       }
 
+      if (persistedApiKey) {
+        this.onApiKeyPersisted?.(persistedApiKey.name, persistedApiKey.value);
+      }
       return {
         revision: revisionOf(updatedSource, updatedEnvSource),
         path: this.path,
